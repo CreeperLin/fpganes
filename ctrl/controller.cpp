@@ -10,17 +10,17 @@ using namespace std;
 
 serial::Serial serPort;
 
-void uart_send(const byte *data, int send_count, byte* recv, int recv_count) {
+void uart_send(const byte *data, int send_count, byte* recv, int return_count) {
     serPort.write(data,send_count);
-    if (!recv_count) return;
+    if (!return_count) return;
     try {
-        serPort.read(recv,recv_count);
+        serPort.read(recv,return_count);
     } catch (std::exception &e) {
         cout<<"recv error:"<<e.what()<<endl;
     }
 }
-void uart_send(const std::vector<byte> data, byte* recv, int recv_count) {
-    uart_send(&data[0],data.size(),recv,recv_count);
+void uart_send(const std::vector<byte> data, byte* recv, int return_count) {
+    uart_send(data.data(),data.size(),recv,return_count);
 }
 void uart_send(const std::string &data) { serPort.write(data); }
 void uart_send(const byte *data, int size) { serPort.write(data,size); }
@@ -76,19 +76,16 @@ int load_rom(char* rom_path) {
     prg_data = new byte[prg_size+10];
     cout<<"reading PRG ROM: "<<prg_size<<endl;
     fin.read(reinterpret_cast<char*>(prg_data),prg_size);
-    for (int i=0;i<0x100; ++i) {
+    for (int i=0;i<0x200; ++i) {
         printf("%02x ", (byte)prg_data[i]);
         if (!((i+1)%32)) printf("\n");
     }
+    cout<<endl;
 
     chr_size = chr_count << 13;
     chr_data = new byte[chr_size+10];
     cout<<"reading CHR ROM: "<<chr_size<<endl;
     fin.read(reinterpret_cast<char*>(chr_data),chr_size);
-    for (int i=0;i<0x100; ++i) {
-        printf("%02x ", (byte)chr_data[i]);
-        if (!((i+1)%32)) printf("\n");
-    }
     fin.close();
 }
 
@@ -98,6 +95,13 @@ int init_port(char* port) {
     serPort.setBytesize(byte_size);
     serPort.setParity(parity);
     serPort.setStopbits(stopbits);
+    serPort.setTimeout(
+        inter_byte_timeout,
+        read_timeout_constant,
+        read_timeout_multiplier,
+        write_timeout_constant,
+        write_timeout_multiplier
+        );
     try {
         serPort.open();
     } catch (std::exception &e) {
@@ -151,6 +155,33 @@ void ctrl() {
             tcsetattr(0,TCSANOW,&stored_settings);
             break;
         }
+        else if (c=='p') {
+            byte send[6]={0};
+            byte recv[64]={0};
+            send[0]=0x05;
+            send[1]=0x00;
+            uart_send(send,2,recv,1);
+            int pcl = recv[0];
+            send[1] = 0x01;
+            uart_send(send,2,recv,1);
+            int pch = recv[0];
+            word pc = pcl|(pch<<8);
+            printf("pc lo: %02x hi: %02x pc:%04x\n",pcl,pch,pc);
+            send[0] = 0x01;
+            *reinterpret_cast<word*>(send+1)=pc;
+            *reinterpret_cast<word*>(send+3)=16;
+            uart_send(send,5,recv,16);
+            for (int i=0;i<16;++i) {
+                printf("%02x ",recv[i]);
+            }
+            printf("\n");
+        }
+        else if (c=='r') {
+            std::vector<byte> data;
+            data.push_back(run?0x03:0x04);
+            run = !run;
+            uart_send(data);
+        }
         else if (input!=NONE) on_input(input);
     }
 }
@@ -164,7 +195,7 @@ int main(int argc, char** argv) {
     char* comport = argv[2];
     if (init_port(comport)) return 1;
     load_rom(rom_path);
-    on_init(header);
+    if (on_init(header)) return 1;
     upload_rom(prg_data,prg_size,chr_data,chr_size); 
     cout<<"rom uploaded"<<endl;
     ctrl();
