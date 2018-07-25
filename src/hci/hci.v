@@ -37,8 +37,8 @@ module hci
   input  wire [ 7:0] ppu_vram_din,     // ppu data bus [input]
   input  wire        jp_clk,
   input  wire        jp_latch,
-  output reg         jp_data1,
-  output reg         jp_data2,
+  output wire        jp_dout1,
+  output wire        jp_dout2,
   output wire        tx,               // rs-232 tx signal
   output wire        active,           // dbg block is active (disable CPU)
   output reg         cpu_r_nw,         // cpu R/!W pin
@@ -117,8 +117,10 @@ wire       rx_empty;
 wire       tx_full;
 wire       parity_err;
 
-// Joystick
-reg[2:0]   q_jp_shift,      d_jp_shift;
+// Joysticks
+reg [ 7:0] q_jp_dout1,        d_jp_dout1;
+reg [ 7:0] q_jp_dout2,        d_jp_dout2;
+reg jp_last_clk;
 
 // Update FF state.
 always @(posedge clk)
@@ -136,9 +138,9 @@ always @(posedge clk)
         q_wr_en            <= 1'b0;
         q_jp_data1         <= 8'h00;
         q_jp_data2         <= 8'h00;
-        q_jp_shift         <= 3'b000;
-        jp_data1           <= 8'h00;
-        jp_data2           <= 8'h00;
+        q_jp_dout1         <= 8'h00;
+        q_jp_dout2         <= 8'h00;
+        jp_last_clk        <= 0;
       end
     else
       begin
@@ -153,6 +155,19 @@ always @(posedge clk)
         q_wr_en            <= d_wr_en;
         q_jp_data1         <= d_jp_data1;
         q_jp_data2         <= d_jp_data2;
+        q_jp_dout1         <= d_jp_dout1;
+        q_jp_dout2         <= d_jp_dout2;
+        if (jp_latch)
+          begin
+            d_jp_dout1 <= q_jp_data1;
+            d_jp_dout2 <= q_jp_data2;
+          end
+        if (!jp_clk && jp_last_clk)
+          begin
+            d_jp_dout1 <= {1'b0, d_jp_dout1[7:1]};
+            d_jp_dout2 <= {1'b0, d_jp_dout2[7:1]};
+          end
+        jp_last_clk <= jp_clk;   
       end
   end
 
@@ -186,6 +201,10 @@ always @*
     d_err_code     = q_err_code;
     d_cart_cfg     = q_cart_cfg;
     d_cart_cfg_upd = 1'b0;
+    d_jp_data1     = q_jp_data1;
+    d_jp_data2     = q_jp_data2;
+    d_jp_dout1     = q_jp_dout1;
+    d_jp_dout2     = q_jp_dout2;
 
     rd_en         = 1'b0;
     d_tx_data     = 8'h00;
@@ -223,6 +242,10 @@ always @*
                   d_tx_data = 8'h00;  // Write "0" over UART to indicate we are not in a debug break
                   d_wr_en   = 1'b1;
                 end
+              else if (rd_data == OP_JOYPAD)
+                begin
+                  d_state = S_JOYPAD;
+                end
             end
         end
       S_DECODE:
@@ -245,7 +268,7 @@ always @*
                 OP_PPU_MEM_WR:           d_state = S_PPU_MEM_WR_STG_0;
                 OP_PPU_DISABLE:          d_state = S_PPU_DISABLE;
                 OP_CART_SET_CFG:         d_state = S_CART_SET_CFG_STG_0;
-                OP_JOYPAD:               d_state = S_JOYPAD;
+//                OP_JOYPAD:               d_state = S_JOYPAD;
                 OP_DBG_RUN:
                   begin
                     d_state = S_DISABLED;
@@ -675,27 +698,15 @@ always @*
             else
               begin
                 d_jp_data2 = rd_data;
-                d_state = S_DECODE;
+                d_state = S_DISABLED;
               end
           end
         end
     endcase
   end
 
-always @(posedge jp_clk)
-  begin
-    q_jp_shift = d_jp_shift;
-    if (jp_latch == 1)
-      begin
-        d_jp_shift = 3'b000;
-      end
-    else
-      begin
-        d_jp_shift = d_jp_shift + 1;
-      end
-    jp_data1 <= ~q_jp_data1[7-q_jp_shift];
-    jp_data2 <= ~q_jp_data2[7-q_jp_shift];
-  end
+assign jp_dout1 = ~q_jp_dout1[0];
+assign jp_dout2 = ~q_jp_dout2[0];
 
 assign cpu_a            = q_addr;
 assign active           = (q_state != S_DISABLED);

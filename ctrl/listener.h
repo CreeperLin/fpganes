@@ -148,5 +148,6 @@ void on_input(input_type input) {
             data[2] = 1<<6;
             break;
     }
+    printf("jp: %02x %02x\n",data[1],data[2]);
     uart_send(data,3);
 }
