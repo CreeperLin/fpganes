@@ -46,7 +46,31 @@ module ppu
   output wire        vram_wr_out    // video memory read/write select
 );
 
+//
+// PPU_VGA: VGA output block.
+//
+wire [5:0] vga_sys_palette_idx;
+wire [9:0] vga_nes_x;
+wire [9:0] vga_nes_y;
+wire [9:0] vga_nes_y_next;
+wire       vga_pix_pulse;
+wire       vga_vblank;
 
+ppu_vga ppu_vga_blk(
+  .clk_in(clk_in),
+  .rst_in(rst_in),
+  .sys_palette_idx_in(vga_sys_palette_idx),
+  .hsync_out(hsync_out),
+  .vsync_out(vsync_out),
+  .r_out(r_out),
+  .g_out(g_out),
+  .b_out(b_out),
+  .nes_x_out(vga_nes_x),
+  .nes_y_out(vga_nes_y),
+  .nes_y_next_out(vga_nes_y_next),
+  .pix_pulse_out(vga_pix_pulse),
+  .vblank_out(vga_vblank)
+);
 
 endmodule
 

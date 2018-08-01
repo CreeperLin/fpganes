@@ -51,7 +51,8 @@ module hci
   output wire [15:0] ppu_vram_a,       // ppu memory address
   output wire [ 7:0] ppu_vram_dout,    // ppu data bus [output]
   output wire [39:0] cart_cfg,         // cartridge config data (from iNES header)
-  output wire        cart_cfg_upd      // pulse on cart_cfg update so cart can reset
+  output wire        cart_cfg_upd,      // pulse on cart_cfg update so cart can reset
+  output wire [10:0] dbg_led
 );
 
 // Debug packet opcodes.
@@ -118,9 +119,8 @@ wire       tx_full;
 wire       parity_err;
 
 // Joysticks
-reg [ 7:0] q_jp_dout1,        d_jp_dout1;
-reg [ 7:0] q_jp_dout2,        d_jp_dout2;
-reg jp_last_clk;
+reg [ 2:0] q_jp_shift, d_jp_shift;
+reg        jp_last_clk;
 
 // Update FF state.
 always @(posedge clk)
@@ -138,8 +138,7 @@ always @(posedge clk)
         q_wr_en            <= 1'b0;
         q_jp_data1         <= 8'h00;
         q_jp_data2         <= 8'h00;
-        q_jp_dout1         <= 8'h00;
-        q_jp_dout2         <= 8'h00;
+        q_jp_shift         <= 3'b000;
         jp_last_clk        <= 0;
       end
     else
@@ -155,17 +154,14 @@ always @(posedge clk)
         q_wr_en            <= d_wr_en;
         q_jp_data1         <= d_jp_data1;
         q_jp_data2         <= d_jp_data2;
-        q_jp_dout1         <= d_jp_dout1;
-        q_jp_dout2         <= d_jp_dout2;
+        q_jp_shift         <= d_jp_shift;
         if (jp_latch)
           begin
-            d_jp_dout1 <= q_jp_data1;
-            d_jp_dout2 <= q_jp_data2;
+            d_jp_shift <= 3'b111;
           end
         if (!jp_clk && jp_last_clk)
           begin
-            d_jp_dout1 <= {1'b0, d_jp_dout1[7:1]};
-            d_jp_dout2 <= {1'b0, d_jp_dout2[7:1]};
+            d_jp_shift <= q_jp_shift - 1;
           end
         jp_last_clk <= jp_clk;   
       end
@@ -203,8 +199,6 @@ always @*
     d_cart_cfg_upd = 1'b0;
     d_jp_data1     = q_jp_data1;
     d_jp_data2     = q_jp_data2;
-    d_jp_dout1     = q_jp_dout1;
-    d_jp_dout2     = q_jp_dout2;
 
     rd_en         = 1'b0;
     d_tx_data     = 8'h00;
@@ -705,11 +699,14 @@ always @*
     endcase
   end
 
-assign jp_dout1 = ~q_jp_dout1[0];
-assign jp_dout2 = ~q_jp_dout2[0];
+assign jp_dout1 = ~q_jp_data1[q_jp_shift];
+assign jp_dout2 = ~q_jp_data2[q_jp_shift];
+
+assign dbg_led[2:0] = q_jp_shift;
+assign dbg_led[10:3] = q_jp_data1;
 
 assign cpu_a            = q_addr;
-assign active           = (q_state != S_DISABLED);
+assign active           = (q_state != S_DISABLED) && (q_state != S_JOYPAD);
 assign ppu_vram_a       = q_addr;
 assign ppu_vram_dout    = rd_data;
 assign cart_cfg         = q_cart_cfg;
