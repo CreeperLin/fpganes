@@ -32,7 +32,7 @@ module nes_top
   input  wire       BTN_EAST,          // console reset
   input  wire       RXD,               // rs-232 rx signal
   input  wire [3:0] SW,                // switches
-  output wire [13:0] LED,
+  output wire [15:0] LED,
 //  input  wire       NES_JOYPAD_DATA1,  // joypad 1 input signal
 //  input  wire       NES_JOYPAD_DATA2,  // joypad 2 input signal
   output wire       TXD,               // rs-232 tx signal
@@ -246,7 +246,7 @@ hci hci_blk(
   .ppu_vram_dout(hci_ppu_vram_dout),
   .cart_cfg(cart_cfg),
   .cart_cfg_upd(cart_cfg_upd),
-  .dbg_led(LED[13:3])
+  .dbg_led(LED[15:2])
 );
 
 // Mux cpumc signals from rp2a03 or hci blk, depending on debug break state (hci_active).
@@ -270,7 +270,5 @@ assign hci_ppu_vram_din = cart_chr_dout | vram_dout;
 assign rp2a03_nnmi = ppu_nvbl;
 
 assign LED[0] = hci_active;
-assign LED[1] = ~NES_JOYPAD_DATA1;
-assign LED[2] = ~NES_JOYPAD_DATA2;
 endmodule
 

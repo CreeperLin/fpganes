@@ -52,7 +52,7 @@ module hci
   output wire [ 7:0] ppu_vram_dout,    // ppu data bus [output]
   output wire [39:0] cart_cfg,         // cartridge config data (from iNES header)
   output wire        cart_cfg_upd,      // pulse on cart_cfg update so cart can reset
-  output wire [10:0] dbg_led
+  output wire [13:0] dbg_led
 );
 
 // Debug packet opcodes.
@@ -239,6 +239,7 @@ always @*
               else if (rd_data == OP_JOYPAD)
                 begin
                   d_state = S_JOYPAD;
+                  d_decode_cnt = 0;
                 end
             end
         end
@@ -702,8 +703,8 @@ always @*
 assign jp_dout1 = ~q_jp_data1[q_jp_shift];
 assign jp_dout2 = ~q_jp_data2[q_jp_shift];
 
-assign dbg_led[2:0] = q_jp_shift;
-assign dbg_led[10:3] = q_jp_data1;
+assign dbg_led[7:0] = q_jp_data1;
+assign dbg_led[13:8] = {q_jp_data2[7:6], q_jp_data2[3:0]};
 
 assign cpu_a            = q_addr;
 assign active           = (q_state != S_DISABLED) && (q_state != S_JOYPAD);
