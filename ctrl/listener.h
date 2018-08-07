@@ -100,54 +100,24 @@ void upload_rom(byte* prg_data, int prg_size, byte* chr_data, int chr_size) {
     delete[] payload;
 }
 
-void on_input(input_type input) {
-    std::cout<<"on input:"<<(int)input<<std::endl;
+void on_input(int* input_array) {
+    //std::cout<<"on input:"<<(int)input<<std::endl;
     byte data[5]={0};
     data[0] = 0x0D;
-    switch (input) {
-        case P1_UP:
-            data[1] = 1<<3;
-            break;
-        case P1_DOWN:
-            data[1] = 1<<2;
-            break;
-        case P1_LEFT:
-            data[1] = 1<<1;
-            break;
-        case P1_RIGHT:
-            data[1] = 1;
-            break;
-        case P1_A:
-            data[1] = 1<<7;
-            break;
-        case P1_B:
-            data[1] = 1<<6;
-            break;
-        case SELECT:
-            data[1] = 1<<5;
-            break;
-        case START:
-            data[1] = 1<<4;
-            break;
-        case P2_UP:
-            data[2] = 1<<3;
-            break;
-        case P2_DOWN:
-            data[2] = 1<<2;
-            break;
-        case P2_LEFT:
-            data[2] = 1<<1;
-            break;
-        case P2_RIGHT:
-            data[2] = 1;
-            break;
-        case P2_A:
-            data[2] = 1<<7;
-            break;
-        case P2_B:
-            data[2] = 1<<6;
-            break;
-    }
+    if (input_array[P1_UP]) data[1] |= 1<<3;
+    if (input_array[P1_DOWN]) data[1] |= 1<<2;
+    if (input_array[P1_LEFT]) data[1] |= 1<<1;
+    if (input_array[P1_RIGHT]) data[1] |= 1;
+    if (input_array[P1_A]) data[1] |= 1<<7;
+    if (input_array[P1_B]) data[1] |= 1<<6;
+    if (input_array[SELECT]) data[1] |= 1<<5;
+    if (input_array[START]) data[1] |= 1<<4;
+    if (input_array[P2_UP]) data[2] |= 1<<3;
+    if (input_array[P2_DOWN]) data[2] |= 1<<2;
+    if (input_array[P2_LEFT]) data[2] |= 1<<1;
+    if (input_array[P2_RIGHT]) data[2] |= 1;
+    if (input_array[P2_A]) data[2] |= 1<<7;
+    if (input_array[P2_B]) data[2] |= 1<<6;
     printf("jp: %02x %02x\n",data[1],data[2]);
     uart_send(data,3);
 }

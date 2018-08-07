@@ -4,6 +4,11 @@
 #include <serial/serial.h>
 #include <vector>
 #include <termios.h>
+#include <linux/input.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 typedef std::uint8_t byte;
 typedef std::uint16_t word;
 using namespace std;
@@ -112,13 +117,13 @@ int init_port(char* port) {
     return 0;
 }
 
-void ctrl() {
+void ctrl(char *kbd_path) {
     int key[15];
     std::ifstream fin("./keymap.txt");
     for (int i=0;i<14;++i) {
-        char c;
+        int c;
         fin>>c;
-        key[i]=(int)c;
+        key[i]=c;
     }
     key_map[key[0]]=P1_UP;
     key_map[key[1]]=P1_DOWN;
@@ -136,7 +141,6 @@ void ctrl() {
     key_map[key[13]]=START;
     fin.close();
 
-    char c;
     termios stored_settings;
     tcgetattr(0,&stored_settings);
     termios new_settings = stored_settings;
@@ -147,15 +151,29 @@ void ctrl() {
     tcsetattr(0,TCSANOW,&new_settings);
 
     int run=0;
+    int keys_fd;
+    struct input_event t;
+    keys_fd=open(kbd_path,O_RDONLY);
+    if(keys_fd<=0)
+    {   
+        printf("error\n");
+        return; 
+    }   
+    //char c;
+    int input_array[16] = {0};
     while (1){
-        c = getchar();
-        input_type input = key_map[(int)c];
-        cout<<"input: "<<c<<' '<<(int)input<<endl;
-        if (c=='q') {
+        read(keys_fd,&t,sizeof(struct input_event));
+        if (t.type != 1 || t.value == 2) continue;
+        printf("key %i state %i \n",t.code,t.value);
+        //c = getchar();
+        //cout<<"input: "<<c<<' '<<(int)input<<endl;
+        input_type input = key_map[t.code];
+        int c = (t.value == 0)?t.code:0;
+        if (c==16) {
             tcsetattr(0,TCSANOW,&stored_settings);
             break;
         }
-        else if (c=='p') {
+        else if (c==25) {
             byte send[6]={0};
             byte recv[64]={0};
             send[0]=0x05;
@@ -176,28 +194,38 @@ void ctrl() {
             }
             printf("\n");
         }
-        else if (c=='r') {
+        else if (c==19) {
             std::vector<byte> data;
             data.push_back(run?0x03:0x04);
             run = !run;
             uart_send(data);
         }
-        else if (input!=NONE) on_input(input);
+        else if (input!=NONE) {
+            if (t.value==1) input_array[(int)input] = 1;
+            else input_array[(int)input] = 0;
+            on_input(input_array);
+        }
     }
 }
 
 int main(int argc, char** argv) {
     if (argc<3) {
-        cout << "usage: path-to-rom com-port" << endl;
+        cout << "usage: path-to-rom com-port input-device" << endl;
         return 1;
     }
     char* rom_path = argv[1];
     char* comport = argv[2];
+    char* kbd_path = argv[3];
     if (init_port(comport)) return 1;
-    load_rom(rom_path);
-    if (on_init(header)) return 1;
-    upload_rom(prg_data,prg_size,chr_data,chr_size); 
-    cout<<"rom uploaded"<<endl;
-    ctrl();
+    cout<<"load rom?";
+    char c;
+    c = getchar();
+    if (c=='y'){
+        load_rom(rom_path);
+        if (on_init(header)) return 1;
+        upload_rom(prg_data,prg_size,chr_data,chr_size); 
+        cout<<"rom uploaded"<<endl;
+    }
+    ctrl(kbd_path);
     serPort.close();
 }
